@@ -2,16 +2,16 @@
 // 🔥 FIREBASE IMPORTS (v9)
 // ===============================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { 
-  getAuth, 
-  signInAnonymously 
+import {
+  getAuth,
+  signInAnonymously
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-import { 
-  getFirestore, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  serverTimestamp 
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
 // ===============================
@@ -59,66 +59,95 @@ function getRandomReward() {
 }
 
 // ===============================
-// 🎡 SPIN FUNCTION (GLOBAL)
+// 🎡 SPIN SYSTEM
 // ===============================
+let isSpinning = false;
+
 window.spin = async function () {
+
+  if (isSpinning) return;
+  isSpinning = true;
+
   const nameInput = document.getElementById("playerName");
   const resultBox = document.getElementById("result");
+  const spinBtn = document.getElementById("spinBtn");
 
   if (!nameInput || !resultBox) {
     alert("Missing HTML elements");
+    isSpinning = false;
     return;
   }
 
   const name = nameInput.value.trim();
   if (!name) {
     alert("Enter player name");
+    isSpinning = false;
     return;
   }
 
   const user = auth.currentUser;
   if (!user) {
-    alert("Auth not ready, try again");
+    alert("Authentication not ready. Try again.");
+    isSpinning = false;
     return;
   }
 
-  // 🔒 LocalStorage Check (device level)
-  if (localStorage.getItem("alreadySpun")) {
-    resultBox.innerText =
-      "⚠️ You already spun and got: " +
-      localStorage.getItem("spinResult");
-    return;
-  }
+  if (spinBtn) spinBtn.disabled = true;
 
-  const ref = doc(db, "spins", user.uid);
-  const snap = await getDoc(ref);
+  try {
 
-  // 🔒 Firebase Check (server level)
-  if (snap.exists()) {
-    resultBox.innerText =
-      "⚠️ You already spun and got: " +
-      snap.data().result;
+    // ===============================
+    // 🔒 DEVICE CHECK (LocalStorage)
+    // ===============================
+    if (localStorage.getItem("alreadySpun")) {
+      resultBox.innerText =
+        "⚠️ You already spun and got: " +
+        localStorage.getItem("spinResult");
 
-    // Sync to localStorage
+      isSpinning = false;
+      return;
+    }
+
+    // ===============================
+    // 🔒 FIREBASE CHECK (Server Level)
+    // ===============================
+    const ref = doc(db, "spins", user.uid);
+    const snap = await getDoc(ref);
+
+    if (snap.exists()) {
+      const previousResult = snap.data().result;
+
+      resultBox.innerText =
+        "⚠️ You already spun and got: " + previousResult;
+
+      localStorage.setItem("alreadySpun", "true");
+      localStorage.setItem("spinResult", previousResult);
+
+      isSpinning = false;
+      return;
+    }
+
+    // ===============================
+    // 🎉 NEW SPIN
+    // ===============================
+    const win = getRandomReward();
+
+    await setDoc(ref, {
+      name: name,
+      result: win,
+      createdAt: serverTimestamp()
+    });
+
     localStorage.setItem("alreadySpun", "true");
-    localStorage.setItem("spinResult", snap.data().result);
-    return;
+    localStorage.setItem("spinResult", win);
+
+    resultBox.innerText =
+      "🎉 Congratulations! You got " + win;
+
+  } catch (error) {
+    console.error(error);
+    alert("Something went wrong. Please try again.");
   }
 
-  // 🎉 NEW SPIN
-  const win = getRandomReward();
-
-  await setDoc(ref, {
-    name: name,
-    result: win,
-    createdAt: serverTimestamp()
-  });
-
-  // Save locally
-  localStorage.setItem("alreadySpun", "true");
-  localStorage.setItem("spinResult", win);
-
-  resultBox.innerText =
-    "🎉 Congratulations! You got " + win;
+  isSpinning = false;
 };
-
