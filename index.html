@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spin the Wheel</title>
+<style>
+  body { margin:0; font-family:Arial,sans-serif; background: radial-gradient(circle at top,#1a1a2e,#000); color:#fff; display:flex; justify-content:center; align-items:center; height:100vh;}
+  .container { text-align:center;}
+  h1 { margin-bottom:20px; font-size:36px;}
+  .wheel-container { position:relative; width:320px; height:320px; margin:0 auto 20px;}
+  canvas { border-radius:50%; box-shadow:0 0 30px rgba(255,255,255,0.3);}
+  .pointer { position:absolute; top:-10px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:15px solid transparent; border-right:15px solid transparent; border-bottom:25px solid #ffcc00;}
+  input { padding:10px; border-radius:6px; border:none; width:200px; margin-right:10px;}
+  button { padding:10px 20px; border:none; border-radius:6px; background:linear-gradient(45deg,#ff9800,#ff5722); color:#fff; font-size:16px; cursor:pointer;}
+  button:disabled { opacity:0.5; cursor:not-allowed;}
+  .result { margin-top:15px; font-size:20px; font-weight:bold; color:#ffcc00;}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🎡 Spin the Wheel</h1>
+  <div class="wheel-container">
+    <div class="pointer"></div>
+    <canvas id="wheel" width="320" height="320"></canvas>
+  </div>
+  <div>
+    <input id="player" placeholder="Enter player name" />
+    <button id="spinBtn">SPIN</button>
+  </div>
+  <div class="result" id="result"></div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<script>
+  // 1️⃣ Firebase config
+  const firebaseConfig = {
+  apiKey: "AIzaSyAF6BkClRrlmLhWdN7nz5BOD_Z3b-WH3SQ",
+  authDomain: "god-b80cc.firebaseapp.com",
+  projectId: "god-b80cc",
+  storageBucket: "god-b80cc.firebasestorage.app",
+  messagingSenderId: "368804947173",
+  appId: "1:368804947173:web:97394d2883e6fd446ce00c"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // 2️⃣ Wheel setup
+  const canvas = document.getElementById("wheel");
+  const ctx = canvas.getContext("2d");
+  const rewards = ["20%","40%","50%","70%"];
+  const colors = ["#ff5252","#42a5f5","#66bb6a","#ab47bc"];
+  const slices = rewards.length;
+  const sliceAngle = (2*Math.PI)/slices;
+  let rotation = 0, spinning = false;
+
+  function drawWheel(){
+    for(let i=0;i<slices;i++){
+      const angle = rotation + i*sliceAngle;
+      ctx.beginPath();
+      ctx.moveTo(160,160);
+      ctx.arc(160,160,160,angle,angle+sliceAngle);
+      ctx.fillStyle = colors[i];
+      ctx.fill();
+      ctx.save();
+      ctx.translate(160,160);
+      ctx.rotate(angle+sliceAngle/2);
+      ctx.textAlign="right";
+      ctx.fillStyle="#fff";
+      ctx.font="bold 20px Arial";
+      ctx.fillText(rewards[i],140,10);
+      ctx.restore();
+    }
+  }
+  drawWheel();
+
+  // 3️⃣ Spin logic
+  document.getElementById("spinBtn").addEventListener("click", async ()=>{
+    if(spinning) return;
+    const name = document.getElementById("player").value.trim();
+    if(!name){ alert("Enter player name"); return;}
+    spinning=true;
+    const spinAngle=Math.random()*2000+2000;
+    const start=performance.now();
+    const duration=4000;
+
+    function animate(time){
+      const progress = Math.min((time-start)/duration,1);
+      rotation = spinAngle*(1-Math.pow(1-progress,3));
+      ctx.clearRect(0,0,320,320);
+      drawWheel();
+      if(progress<1){ requestAnimationFrame(animate);}
+      else{
+        spinning=false;
+        const index = Math.floor(((2*Math.PI-(rotation%(2*Math.PI)))/sliceAngle))%slices;
+        const win = rewards[index];
+        document.getElementById("result").innerText = name + " won " + win + " bonus 🎉";
+
+        // 4️⃣ Save to Firestore
+        db.collection("spins").add({
+          player: name,
+          bonus: win,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        })
+        .then(()=>console.log("Saved to Firestore"))
+        .catch(e=>console.error(e));
+
+        // 5️⃣ Send to Google Sheets
+        fetch("https://script.google.com/macros/s/AKfycbzq2xddwe17ak7I4YAIwkMGXR2_-2I6mG6UjRJ8R7Y9fkUp21_Phj15s0n-6bBawdDIrA/exec", { // ← replace with your Web App URL
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ player: name, bonus: win })
+        })
+        .then(res => res.json())
+        .then(data => console.log("Sheet response:", data))
+        .catch(err => console.error("Error sending to Sheets:", err));
+      }
+    }
+    requestAnimationFrame(animate);
+  });
+</script>
+
+</body>
+</html>
