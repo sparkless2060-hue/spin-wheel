@@ -93,10 +93,10 @@ spinBtn.addEventListener("click", async () => {
   const ref = doc(db, "spins", user.uid);
   const snap = await getDoc(ref);
 
-  // if (snap.exists()) {
-  //  showModal("⚠️ You already spun and got: " + snap.data().result);
-  //  return;
-  // }
+  if (snap.exists()) {
+    showModal("⚠️ You already spun and got: " + snap.data().result);
+    return;
+  }
 
   isSpinning = true;
   spinSound.play();
