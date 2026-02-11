@@ -200,11 +200,16 @@ async function spin() {
 
   // 🔒 DEVICE CHECK
   if (localStorage.getItem("alreadySpun")) {
-    resultBox.innerText =
-      "⚠️ You already spun and got: " +
-      localStorage.getItem("spinResult");
-    spinning = false;
-    return;
+
+  alert("⚠️ You already spun and cannot spin again!");
+
+  resultBox.innerText =
+    "⚠️ You already spun and got: " +
+    localStorage.getItem("spinResult");
+
+  spinning = false;
+  return;}
+
   }
 
   const ref = doc(db, "spins", user.uid);
@@ -212,17 +217,18 @@ async function spin() {
 
   // 🔒 FIREBASE CHECK
   if (snap.exists()) {
-    const previous = snap.data().result;
+  const previous = snap.data().result;
 
-    resultBox.innerText =
-      "⚠️ You already spun and got: " + previous;
+  alert("⚠️ You already spun and cannot spin again!");
 
-    localStorage.setItem("alreadySpun", "true");
-    localStorage.setItem("spinResult", previous);
+  resultBox.innerText =
+    "⚠️ You already spun and got: " + previous;
 
-    spinning = false;
-    return;
-  }
+  localStorage.setItem("alreadySpun", "true");
+  localStorage.setItem("spinResult", previous);
+
+  spinning = false;
+  return;}
 
   // 🎉 ANIMATION
   const spinAngle = Math.random() * 2000 + 2000;
