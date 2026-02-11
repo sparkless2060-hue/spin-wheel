@@ -18,64 +18,60 @@ const firebaseConfig = {
 };
 
 // ===============================
-// 🔥 INIT FIREBASE
-// ===============================
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Anonymous Login
 await signInAnonymously(auth);
 
 // ===============================
-// 🎁 WEIGHTED REWARDS
+// 🎁 REWARDS
 // ===============================
 const rewards = [
-  { label: "20%", weight: 10, color: "#ff5252" },
-  { label: "40%", weight: 30, color: "#42a5f5" },
-  { label: "50%", weight: 40, color: "#66bb6a" },
-  { label: "70%", weight: 20, color: "#ab47bc" }
+  { label: "20%", color: "#ff5252" },
+  { label: "40%", color: "#42a5f5" },
+  { label: "50%", color: "#66bb6a" },
+  { label: "70%", color: "#ab47bc" }
 ];
 
-function getRandomReward() {
-  const total = rewards.reduce((sum, r) => sum + r.weight, 0);
-  let rand = Math.random() * total;
-
-  for (const r of rewards) {
-    if (rand < r.weight) return r;
-    rand -= r.weight;
-  }
-}
-
-// ===============================
-// 🎡 WHEEL DRAW
-// ===============================
 const canvas = document.getElementById("wheel");
 const ctx = canvas.getContext("2d");
 
+const center = 160;
+const radius = 160;
 const slices = rewards.length;
 const sliceAngle = (2 * Math.PI) / slices;
 
 let rotation = 0;
 let spinning = false;
 
+// ===============================
+// 🎡 DRAW WHEEL
+// ===============================
 function drawWheel() {
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
   for (let i = 0; i < slices; i++) {
-    const angle = rotation + i * sliceAngle;
+
+    const startAngle = rotation + i * sliceAngle;
+    const endAngle = startAngle + sliceAngle;
 
     ctx.beginPath();
-    ctx.moveTo(160, 160);
-    ctx.arc(160, 160, 160, angle, angle + sliceAngle);
+    ctx.moveTo(center, center);
+    ctx.arc(center, center, radius, startAngle, endAngle);
+    ctx.closePath();
     ctx.fillStyle = rewards[i].color;
     ctx.fill();
 
+    // Text
     ctx.save();
-    ctx.translate(160,160);
-    ctx.rotate(angle + sliceAngle/2);
-    ctx.textAlign="right";
-    ctx.fillStyle="#fff";
-    ctx.font="bold 20px Arial";
-    ctx.fillText(rewards[i].label,140,10);
+    ctx.translate(center, center);
+    ctx.rotate(startAngle + sliceAngle / 2);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 20px Arial";
+    ctx.fillText(rewards[i].label, radius - 20, 10);
     ctx.restore();
   }
 }
@@ -83,7 +79,7 @@ function drawWheel() {
 drawWheel();
 
 // ===============================
-// 🎡 SPIN LOGIC
+// 🎡 SPIN BUTTON
 // ===============================
 document.getElementById("spinBtn").addEventListener("click", spin);
 
@@ -106,20 +102,17 @@ async function spin() {
 
   const user = auth.currentUser;
   if (!user) {
-    alert("Authentication not ready");
+    alert("Auth not ready");
     spinning = false;
     return;
   }
 
-  // 🔒 LOCAL CHECK
+  // 🔒 Local check
   if (localStorage.getItem("alreadySpun")) {
-
-    alert("⚠️ You already spun and cannot spin again!");
-
+    alert("⚠️ You already spun!");
     resultBox.innerText =
       "⚠️ You already spun and got: " +
       localStorage.getItem("spinResult");
-
     spinning = false;
     return;
   }
@@ -127,12 +120,11 @@ async function spin() {
   const ref = doc(db, "spins", user.uid);
   const snap = await getDoc(ref);
 
-  // 🔒 FIREBASE CHECK
+  // 🔒 Firebase check
   if (snap.exists()) {
-
     const previous = snap.data().result;
 
-    alert("⚠️ You already spun and cannot spin again!");
+    alert("⚠️ You already spun!");
 
     resultBox.innerText =
       "⚠️ You already spun and got: " + previous;
@@ -146,39 +138,43 @@ async function spin() {
 
   spinBtn.disabled = true;
 
-  // 🎉 PICK WINNER
-  const selectedReward = getRandomReward();
+  // 🎉 Pick random slice
+  const randomIndex = Math.floor(Math.random() * slices);
 
-  const targetIndex = rewards.findIndex(r => r.label === selectedReward.label);
-
-  const spinAngle = (5 * 2 * Math.PI) + 
-    ((slices - targetIndex) * sliceAngle);
+  const spinRounds = 6;
+  const targetAngle =
+    (spinRounds * 2 * Math.PI) +
+    (Math.PI * 2 - randomIndex * sliceAngle);
 
   const start = performance.now();
   const duration = 4000;
 
   function animate(time) {
-    const progress = Math.min((time - start) / duration, 1);
-    rotation = spinAngle * progress;
 
-    ctx.clearRect(0, 0, 320, 320);
+    const progress = Math.min((time - start) / duration, 1);
+    const easeOut = 1 - Math.pow(1 - progress, 3);
+
+    rotation = targetAngle * easeOut;
+
     drawWheel();
 
     if (progress < 1) {
       requestAnimationFrame(animate);
     } else {
 
+      const win = rewards[randomIndex].label;
+
       resultBox.innerText =
-        "🎉 Congratulations! You got " + selectedReward.label;
+        "🎉 Congratulations! You got " + win;
 
       setDoc(ref, {
         name: name,
-        result: selectedReward.label,
+        result: win,
         createdAt: serverTimestamp()
       });
 
       localStorage.setItem("alreadySpun", "true");
-      localStorage.setItem("spinResult", selectedReward.label);
+      localStorage.setItem("spinResult", win);
 
       spinning = false;
     }
