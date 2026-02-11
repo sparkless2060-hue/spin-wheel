@@ -82,13 +82,26 @@ window.spin = async function () {
     return;
   }
 
+  // 🔒 LocalStorage Check (device level)
+  if (localStorage.getItem("alreadySpun")) {
+    resultBox.innerText =
+      "⚠️ You already spun and got: " +
+      localStorage.getItem("spinResult");
+    return;
+  }
+
   const ref = doc(db, "spins", user.uid);
   const snap = await getDoc(ref);
 
-  // ❌ ALREADY SPUN
+  // 🔒 Firebase Check (server level)
   if (snap.exists()) {
     resultBox.innerText =
-      "❌ You already spun and got: " + snap.data().result;
+      "⚠️ You already spun and got: " +
+      snap.data().result;
+
+    // Sync to localStorage
+    localStorage.setItem("alreadySpun", "true");
+    localStorage.setItem("spinResult", snap.data().result);
     return;
   }
 
@@ -101,6 +114,11 @@ window.spin = async function () {
     createdAt: serverTimestamp()
   });
 
+  // Save locally
+  localStorage.setItem("alreadySpun", "true");
+  localStorage.setItem("spinResult", win);
+
   resultBox.innerText =
     "🎉 Congratulations! You got " + win;
 };
+
