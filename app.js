@@ -61,93 +61,99 @@ function getRandomReward() {
 // ===============================
 // 🎡 SPIN SYSTEM
 // ===============================
-let isSpinning = false;
+async function spin() {
 
-window.spin = async function () {
-
-  if (isSpinning) return;
-  isSpinning = true;
+  if (spinning) return;
+  spinning = true;
 
   const nameInput = document.getElementById("playerName");
   const resultBox = document.getElementById("result");
   const spinBtn = document.getElementById("spinBtn");
 
-  if (!nameInput || !resultBox) {
-    alert("Missing HTML elements");
-    isSpinning = false;
-    return;
-  }
-
   const name = nameInput.value.trim();
   if (!name) {
-    alert("Enter player name");
-    isSpinning = false;
+    alert("Enter your name");
+    spinning = false;
     return;
   }
 
   const user = auth.currentUser;
   if (!user) {
-    alert("Authentication not ready. Try again.");
-    isSpinning = false;
+    alert("Auth not ready");
+    spinning = false;
     return;
   }
 
-  if (spinBtn) spinBtn.disabled = true;
+  const ref = doc(db, "spins", user.uid);
+  const snap = await getDoc(ref);
 
-  try {
-
-    // ===============================
-    // 🔒 DEVICE CHECK (LocalStorage)
-    // ===============================
-    if (localStorage.getItem("alreadySpun")) {
-      resultBox.innerText =
-        "⚠️ You already spun and got: " +
-        localStorage.getItem("spinResult");
-
-      isSpinning = false;
-      return;
-    }
-
-    // ===============================
-    // 🔒 FIREBASE CHECK (Server Level)
-    // ===============================
-    const ref = doc(db, "spins", user.uid);
-    const snap = await getDoc(ref);
-
-    if (snap.exists()) {
-      const previousResult = snap.data().result;
-
-      resultBox.innerText =
-        "⚠️ You already spun and got: " + previousResult;
-
-      localStorage.setItem("alreadySpun", "true");
-      localStorage.setItem("spinResult", previousResult);
-
-      isSpinning = false;
-      return;
-    }
-
-    // ===============================
-    // 🎉 NEW SPIN
-    // ===============================
-    const win = getRandomReward();
-
-    await setDoc(ref, {
-      name: name,
-      result: win,
-      createdAt: serverTimestamp()
-    });
-
-    localStorage.setItem("alreadySpun", "true");
-    localStorage.setItem("spinResult", win);
-
+  // 🔒 DEVICE CHECK
+  if (localStorage.getItem("alreadySpun")) {
+    alert("⚠️ You already spun and cannot spin again.");
     resultBox.innerText =
-      "🎉 Congratulations! You got " + win;
-
-  } catch (error) {
-    console.error(error);
-    alert("Something went wrong. Please try again.");
+      "⚠️ You already spun and got: " +
+      localStorage.getItem("spinResult");
+    spinning = false;
+    return;
   }
 
-  isSpinning = false;
-};
+  // 🔒 FIREBASE CHECK
+  if (snap.exists()) {
+    const previous = snap.data().result;
+
+    alert("⚠️ You already spun and cannot spin again.");
+
+    resultBox.innerText =
+      "⚠️ You already spun and got: " + previous;
+
+    localStorage.setItem("alreadySpun", "true");
+    localStorage.setItem("spinResult", previous);
+
+    spinning = false;
+    return;
+  }
+
+  // Disable button only when spin is valid
+  spinBtn.disabled = true;
+
+  // 🎉 SPIN ANIMATION
+  const spinAngle = Math.random() * 2000 + 2000;
+  const start = performance.now();
+  const duration = 4000;
+
+  function animate(time) {
+    const progress = Math.min((time - start) / duration, 1);
+    rotation = spinAngle * (1 - Math.pow(1 - progress, 3));
+    ctx.clearRect(0, 0, 320, 320);
+    drawWheel();
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+
+      const index =
+        Math.floor(
+          ((2 * Math.PI - (rotation % (2 * Math.PI))) / sliceAngle)
+        ) % slices;
+
+      const win = rewards[index];
+
+      resultBox.innerText =
+        "🎉 Congratulations! You got " + win;
+
+      setDoc(ref, {
+        name: name,
+        result: win,
+        createdAt: serverTimestamp()
+      });
+
+      localStorage.setItem("alreadySpun", "true");
+      localStorage.setItem("spinResult", win);
+
+      spinning = false;
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
